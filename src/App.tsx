@@ -2,8 +2,89 @@
 import axios from 'axios';
 import { useEffect ,useState} from 'react';
 import './App.css';
+import readXlsxFile from 'read-excel-file';
+import { NumericLiteral } from 'typescript';
 
 
+    //<!--
+    //
+    // LCC DFS 좌표변환을 위한 기초 자료
+    //
+    var RE = 6371.00877; // 지구 반경(km)
+    var GRID = 5.0; // 격자 간격(km)
+    var SLAT1 = 30.0; // 투영 위도1(degree)
+    var SLAT2 = 60.0; // 투영 위도2(degree)
+    var OLON = 126.0; // 기준점 경도(degree)
+    var OLAT = 38.0; // 기준점 위도(degree)
+    var XO = 43; // 기준점 X좌표(GRID)
+    var YO = 136; // 기1준점 Y좌표(GRID)
+    //
+    // LCC DFS 좌표변환 ( code : "toXY"(위경도->좌표, v1:위도, v2:경도), "toLL"(좌표->위경도,v1:x, v2:y) )
+    //
+
+    const rs = dfs_xy_conv('toXY',37.6016, 127.0114)
+
+    console.log(rs.lat, rs.lng, rs.x, rs.y);
+
+    //https://gist.github.com/fronteer-kr/14d7f779d52a21ac2f16
+    function dfs_xy_conv(code :any, v1:any, v2:any) {
+        var DEGRAD = Math.PI / 180.0;
+        var RADDEG = 180.0 / Math.PI;
+
+        var re = RE / GRID;
+        var slat1 = SLAT1 * DEGRAD;
+        var slat2 = SLAT2 * DEGRAD;
+        var olon = OLON * DEGRAD;
+        var olat = OLAT * DEGRAD;
+
+        var sn = Math.tan(Math.PI * 0.25 + slat2 * 0.5) / Math.tan(Math.PI * 0.25 + slat1 * 0.5);
+        sn = Math.log(Math.cos(slat1) / Math.cos(slat2)) / Math.log(sn);
+        var sf = Math.tan(Math.PI * 0.25 + slat1 * 0.5);
+        sf = Math.pow(sf, sn) * Math.cos(slat1) / sn;
+        var ro = Math.tan(Math.PI * 0.25 + olat * 0.5);
+        ro = re * sf / Math.pow(ro, sn);
+        var rs:any = {};
+        if (code == "toXY") {
+            rs['lat'] = v1;
+            rs['lng'] = v2;
+            var ra = Math.tan(Math.PI * 0.25 + (v1) * DEGRAD * 0.5);
+            ra = re * sf / Math.pow(ra, sn);
+            var theta = v2 * DEGRAD - olon;
+            if (theta > Math.PI) theta -= 2.0 * Math.PI;
+            if (theta < -Math.PI) theta += 2.0 * Math.PI;
+            theta *= sn;
+            rs['x'] = Math.floor(ra * Math.sin(theta) + XO + 0.5);
+            rs['y'] = Math.floor(ro - ra * Math.cos(theta) + YO + 0.5);
+        }
+        else {
+            rs['x'] = v1;
+            rs['y'] = v2;
+            var xn = v1 - XO;
+            var yn = ro - v2 + YO;
+            ra = Math.sqrt(xn * xn + yn * yn);
+            if (sn < 0.0) {ra =- ra;}
+            var alat = Math.pow((re * sf / ra), (1.0 / sn));
+            alat = 2.0 * Math.atan(alat) - Math.PI * 0.5;
+
+            if (Math.abs(xn) <= 0.0) {
+                theta = 0.0;
+            }
+            else {
+                if (Math.abs(yn) <= 0.0) {
+                    theta = Math.PI * 0.5;
+                    if (xn < 0.0){theta =- theta;}
+                }
+                else theta = Math.atan2(xn, yn);
+            }
+            var alon = theta / sn + olon;
+            rs['lat'] = alat * RADDEG;
+            rs['lng'] = alon * RADDEG;
+        }
+        return rs;
+    }
+
+    let nx:number = 0;
+    let ny:number = 0;
 
 
 
@@ -13,11 +94,20 @@ function App() {
 
   //기상청에서 받아온 오늘 날씨 00:00~23:00 시간단위
   let tempList :any [] = [];
+  
+  //당일날씨 00시 ~ 23시
+  const [dailyTemp, setDailyTemp] : any[] = useState([]);
+
 
   //현재위치
   const [position,setPosition] = useState('');
   //현재온도
   const [temp, setTemp] = useState('');
+  
+    //최저온도
+    const [lowTemp, setLowTemp] = useState('');
+  //최고온도
+  const [highTemp, setHighTemp] = useState('');
 
   //openWeather key
   const openWeatherApiKey :(string | undefined) = process.env.REACT_APP_openWeatherApiKey;
@@ -64,6 +154,13 @@ function App() {
 async function getCurrentCity(position :any) {
   const latitude = (position.coords.latitude)
   const longitude = (position.coords.longitude)
+  const rs = dfs_xy_conv('toXY',latitude,longitude);
+
+  console.log("와치id 경도값")
+  console.log(rs.x,rs.y)
+
+  getWeatherApi2(rs.x,rs.y)
+
   const currentLocationCity2 = await openWeatherApiCurrent(latitude,longitude);
   const currentLocationForecast = await openWeatherApiForecast(latitude,longitude);
   const kakaoCity = await kakaoApi(latitude,longitude);
@@ -91,6 +188,10 @@ const options = {
 // 위도, 경도 값을 구하는 자바스크립트 api
 const watchID  = (): void => {navigator.geolocation.getCurrentPosition(getCurrentCity, error, options)};
 
+useEffect(()=>{
+
+},[])
+
 
   //하루전날의 Date 생성 오늘이 5월15일이면 5월 14일 생성
   //기상청 데이터를 받아올 때 사용한다.
@@ -111,8 +212,6 @@ console.log(formatDate)
   const dataType :string = 'JSON';
   const base_date :string = formatDate
   const base_time :string = '2330';
-  const nx :number =60;
-  const ny :number = 128;
 
 
  //
@@ -120,15 +219,16 @@ console.log(formatDate)
 
   // http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst
   
-  const  getWeatherApi2 = async () => {
+  const  getWeatherApi2 = async (nx:number,ny:number) => {
     try{
    await axios.get(`${proxy}http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst?serviceKey=${apiKey}&pageNo=${pageNo}&numOfRows=${numOfRows}&dataType=${dataType}&base_date=${base_date}&base_time=${base_time}&nx=${nx}&ny=${ny}`)
     .then(res => {
-      // console.log(res.data.response.body.items.item)
+      console.log(res.data)
       //배열 290개
       tempList = [res.data.response.body.items.item]
       
       console.log(tempList)
+     
       
       // 시간별 온도가 담긴 TMP 값만 빼오기
       let tmpList = tempList[0].filter((i :any,index :any) =>  i.category === 'TMP')
@@ -139,15 +239,19 @@ console.log(formatDate)
       let timeList = tmpList.map((i:any) => (i.fcstValue))
       console.log('00시 ~ 23시까지의 온도값 배열')
       console.log(timeList)
+      console.log(timeList[timeList.length -1])
+      setDailyTemp([...timeList])
 
       let lowTemp = timeList.sort()[0];
       console.log('최저온도')
       console.log(lowTemp)
+      setLowTemp(lowTemp)
+      
 
       let highTemp = timeList.sort()[timeList.length -1];
       console.log('최고온도')
       console.log(highTemp)
-
+      setHighTemp(highTemp)
 
 
     })
@@ -160,10 +264,15 @@ console.log(formatDate)
 
   return (
   <>
-  <button onClick={getWeatherApi2}>기상청 날씨 api</button>
+  {/* <button onClick={getWeatherApi2}>기상청 날씨 api</button> */}
   <button onClick ={()=> {watchID()}}>오픈웨더 날씨 api</button>
   <p>{position}</p>
   <p>{temp}</p>
+  <p>최저온도 {lowTemp}</p>
+  <p>최고온도 {highTemp}</p>
+  {dailyTemp.map((i :any) => (<li>
+    {i}
+  </li>))}
   </> 
   );
 }
