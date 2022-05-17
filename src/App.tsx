@@ -2,8 +2,7 @@
 import axios from 'axios';
 import { useEffect ,useState} from 'react';
 import './App.css';
-import readXlsxFile from 'read-excel-file';
-import { NumericLiteral } from 'typescript';
+
 
 
     //<!--
@@ -24,7 +23,6 @@ import { NumericLiteral } from 'typescript';
 
     const rs = dfs_xy_conv('toXY',37.6016, 127.0114)
 
-    console.log(rs.lat, rs.lng, rs.x, rs.y);
 
     //https://gist.github.com/fronteer-kr/14d7f779d52a21ac2f16
     function dfs_xy_conv(code :any, v1:any, v2:any) {
@@ -83,8 +81,6 @@ import { NumericLiteral } from 'typescript';
         return rs;
     }
 
-    let nx:number = 0;
-    let ny:number = 0;
 
 
 
@@ -103,6 +99,9 @@ function App() {
   const [position,setPosition] = useState('');
   //현재온도
   const [temp, setTemp] = useState('');
+
+    //현재온도 기상청값
+    const [temp2, setTemp2] = useState('');
   
     //최저온도
     const [lowTemp, setLowTemp] = useState('');
@@ -152,13 +151,14 @@ function App() {
 
 // watchID 성공 시 실행되는 함수
 async function getCurrentCity(position :any) {
+  // position에 들어있는 위도 경도 값을 할당해놓는다.
   const latitude = (position.coords.latitude)
   const longitude = (position.coords.longitude)
+
+  // 위도 경도값으로 XY값을 구하는 함수 호출
   const rs = dfs_xy_conv('toXY',latitude,longitude);
 
-  console.log("와치id 경도값")
-  console.log(rs.x,rs.y)
-
+  // XY값을 기준으로 기상청api 호출
   getWeatherApi2(rs.x,rs.y)
 
   const currentLocationCity2 = await openWeatherApiCurrent(latitude,longitude);
@@ -169,7 +169,7 @@ async function getCurrentCity(position :any) {
   console.log(`현재 온도는 ${currentLocationCity2.main.temp}도 입니다.`)
   console.log(`현재 위치는 ${kakaoCity}입니다.`)
   setPosition(`현재 위치는 ${kakaoCity}입니다.`)
-  setTemp(`현재 온도는 ${currentLocationCity2.main.temp}도 입니다.`)
+  setTemp(`${currentLocationCity2.main.temp}`)
 }
 
 // watchID 실패 시 실행되는 함수
@@ -203,6 +203,9 @@ const formatDate = year+(("00"+month.toString()).slice(-2))+(("00"+day.toString(
 console.log(formatDate)
 
 
+let time = today.getHours()
+console.log(time)
+
   //기상청 초단기예보조회에 필요한 쿼리스트링 변수들
   //프록시는 로컬환경 개발을 위해 사용함 //https://cors-anywhere.herokuapp.com/corsdemo에서 활성화 시켜줘야 프록시 활성화됨
   const proxy :string = 'https://cors-anywhere.herokuapp.com/'
@@ -220,7 +223,7 @@ console.log(formatDate)
   // http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst
   
   const  getWeatherApi2 = async (nx:number,ny:number) => {
-    try{
+  
    await axios.get(`${proxy}http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst?serviceKey=${apiKey}&pageNo=${pageNo}&numOfRows=${numOfRows}&dataType=${dataType}&base_date=${base_date}&base_time=${base_time}&nx=${nx}&ny=${ny}`)
     .then(res => {
       console.log(res.data)
@@ -239,25 +242,36 @@ console.log(formatDate)
       let timeList = tmpList.map((i:any) => (i.fcstValue))
       console.log('00시 ~ 23시까지의 온도값 배열')
       console.log(timeList)
-      console.log(timeList[timeList.length -1])
       setDailyTemp([...timeList])
 
-      let lowTemp = timeList.sort()[0];
+            //현재온도 - 시간을 뽑아서 timeList에서 빼오자
+            setTemp2(timeList[time])
+            console.log(timeList[time])
+            console.log(timeList[0])
+            console.log(timeList[4])
+            console.log(timeList[23])
+
+
+
+      // 온도값 배열을 복사하여 최저,최고온도 구하는데에 사용한다.
+      let tempList2 : any[] = timeList.slice()
+
+      let lowTemp = tempList2.sort()[0];
       console.log('최저온도')
       console.log(lowTemp)
       setLowTemp(lowTemp)
       
 
-      let highTemp = timeList.sort()[timeList.length -1];
+      let highTemp = tempList2.sort()[timeList.length -1];
       console.log('최고온도')
       console.log(highTemp)
       setHighTemp(highTemp)
 
 
+
+
     })
-  }catch(err){
-    console.log(err)
-  }
+  
   }
 
 
@@ -267,7 +281,8 @@ console.log(formatDate)
   {/* <button onClick={getWeatherApi2}>기상청 날씨 api</button> */}
   <button onClick ={()=> {watchID()}}>오픈웨더 날씨 api</button>
   <p>{position}</p>
-  <p>{temp}</p>
+  <p>openWeatherApi 현재 온도 {temp}</p>
+  <p>기상청 현재 온도 {temp2}</p>
   <p>최저온도 {lowTemp}</p>
   <p>최고온도 {highTemp}</p>
   {dailyTemp.map((i :any) => (<li>
