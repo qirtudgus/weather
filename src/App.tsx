@@ -103,11 +103,16 @@ function App() {
     //현재온도 기상청값
     const [temp2, setTemp2] = useState('');
   
+    //현재습도 기상청값
+    const [reh, setReh] = useState('');
+
     //최저온도
     const [lowTemp, setLowTemp] = useState('');
   //최고온도
   const [highTemp, setHighTemp] = useState('');
 
+
+  
   //openWeather key
   const openWeatherApiKey :(string | undefined) = process.env.REACT_APP_openWeatherApiKey;
   //kakao REST key
@@ -188,11 +193,6 @@ const options = {
 // 위도, 경도 값을 구하는 자바스크립트 api
 const watchID  = (): void => {navigator.geolocation.getCurrentPosition(getCurrentCity, error, options)};
 
-useEffect(()=>{
-
-},[])
-
-
   //하루전날의 Date 생성 오늘이 5월15일이면 5월 14일 생성
   //기상청 데이터를 받아올 때 사용한다.
 const today = new Date();
@@ -201,7 +201,6 @@ const month = today.getMonth()+1;
 const day = today.getDate()-1;
 const formatDate = year+(("00"+month.toString()).slice(-2))+(("00"+day.toString()).slice(-2));
 console.log(formatDate)
-
 
 let time = today.getHours()
 console.log(time)
@@ -224,6 +223,7 @@ console.log(time)
   
   const  getWeatherApi2 = async (nx:number,ny:number) => {
   
+
    await axios.get(`${proxy}http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst?serviceKey=${apiKey}&pageNo=${pageNo}&numOfRows=${numOfRows}&dataType=${dataType}&base_date=${base_date}&base_time=${base_time}&nx=${nx}&ny=${ny}`)
     .then(res => {
       console.log(res.data)
@@ -235,7 +235,6 @@ console.log(time)
       
       // 시간별 온도가 담긴 TMP 값만 빼오기
       let tmpList = tempList[0].filter((i :any,index :any) =>  i.category === 'TMP')
-      // let tmpList = tempList.map(a => ( a.category == 'TMP'))
       console.log(tmpList)
 
       // 00시 ~ 23시까지의 온도값 배열
@@ -244,12 +243,19 @@ console.log(time)
       console.log(timeList)
       setDailyTemp([...timeList])
 
-            //현재온도 - 시간을 뽑아서 timeList에서 빼오자
-            setTemp2(timeList[time])
-            console.log(timeList[time])
-            console.log(timeList[0])
-            console.log(timeList[4])
-            console.log(timeList[23])
+          //현재온도 - 시간을 뽑아서 timeList에서 빼오자
+          setTemp2(timeList[time])
+          console.log(timeList[time])
+
+
+
+      // 시간별 습도가 담긴 REH 값 배열 생성
+      let rehList = tempList[0].filter((i :any) =>  i.category === 'REH')
+      let timeRehList = rehList.map((i:any) => (i.fcstValue))
+      console.log(timeRehList)
+      setReh(timeRehList[time])
+
+        
 
 
 
@@ -283,10 +289,12 @@ console.log(time)
   <p>{position}</p>
   <p>openWeatherApi 현재 온도 {temp}</p>
   <p>기상청 현재 온도 {temp2}</p>
+  <p>기상청 현재 습도 {reh}</p>
   <p>최저온도 {lowTemp}</p>
   <p>최고온도 {highTemp}</p>
-  {dailyTemp.map((i :any) => (<li>
-    {i}
+  {dailyTemp.map((i :any, index:any) => (
+  <li>
+    {`${index} 시 : ${i}`}
   </li>))}
   </> 
   );
